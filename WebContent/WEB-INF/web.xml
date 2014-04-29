@@ -10,6 +10,6 @@
   </servlet>
   <servlet-mapping>
     <servlet-name>javax.ws.rs.core.Application</servlet-name>
-    <url-pattern>/rest/v1dev/*</url-pattern>
+    <url-pattern>/rest/v0/*</url-pattern>
   </servlet-mapping>
 </web-app>
