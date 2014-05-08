@@ -80,6 +80,7 @@
 			</resource>
 		</resources>
 
+		<sourceDirectory>src</sourceDirectory>
 		<testSourceDirectory>test</testSourceDirectory>
 	</build>
 
