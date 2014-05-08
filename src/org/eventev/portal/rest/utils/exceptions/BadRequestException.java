@@ -1,4 +1,4 @@
-package org.eventev.portal.rest.utils;
+package org.eventev.portal.rest.utils.exceptions;
 
 public class BadRequestException extends Exception {
 

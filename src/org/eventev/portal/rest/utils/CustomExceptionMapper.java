@@ -11,6 +11,8 @@ import javax.ws.rs.core.Response.Status;
 import javax.ws.rs.ext.ExceptionMapper;
 import javax.ws.rs.ext.Provider;
 
+import org.eventev.portal.rest.utils.exceptions.BadRequestException;
+
 @Provider
 public class CustomExceptionMapper implements ExceptionMapper<Exception> {
 
