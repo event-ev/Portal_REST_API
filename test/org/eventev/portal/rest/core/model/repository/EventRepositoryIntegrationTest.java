@@ -3,7 +3,7 @@ package org.eventev.portal.rest.core.model.repository;
 import static org.junit.Assert.assertEquals;
 
 import org.eventev.portal.rest.core.model.domain.Event;
-import org.eventev.portal.rest.utils.MongoConfiguration;
+import org.eventev.portal.rest.utils.mongo.MongoConfiguration;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;

@@ -1,8 +1,10 @@
-package org.eventev.portal.rest.utils;
+package org.eventev.portal.rest.utils.mongo;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -28,6 +30,7 @@ public class MongoConfiguration {
 	private static Logger log = LoggerFactory
 			.getLogger(MongoConfiguration.class);
 
+	private static boolean configured = false;
 	private static Properties properties = new Properties();
 	private static ServerAddress seed = null;
 	private static List<ServerAddress> seeds = null;
@@ -35,18 +38,16 @@ public class MongoConfiguration {
 	private static List<MongoCredential> credentials = null;
 	private static String database = null;
 
-	static {
-		MongoConfiguration.configure();
-	}
-
 	public static void configure() {
 		try {
-			InputStream in = new FileInputStream("mongo.properties");
+			InputStream in = new FileInputStream(new File(
+					MongoConfiguration.class.getResource("/mongo.properties")
+							.toURI()));
 			properties.load(in);
 			in.close();
-		} catch (IOException e) {
+			log.info("mongo.properties found, loading...");
+		} catch (IOException | URISyntaxException e) {
 			log.error("mongo.properties missing!", e);
-			System.exit(1);
 		}
 
 		database = properties.getProperty("database");
@@ -82,8 +83,7 @@ public class MongoConfiguration {
 			}
 			// else Default Setup
 		} catch (UnknownHostException e) {
-			log.error("Some host in mongo.properties are unknown!", e);
-			System.exit(1);
+			log.error("Some host in mongo.properties is unknown!", e);
 		}
 
 		if (properties.containsKey("db.name")
@@ -114,32 +114,69 @@ public class MongoConfiguration {
 	}
 
 	@Bean
-	public static DB mongoDB() throws UnknownHostException {
+	public static DB mongoDB() throws UnknownHostException, MissingMongoCredetialsException {
+		if (!configured)
+			MongoConfiguration.configure();
 		return mongoClient().getDB(database);
 	}
 
 	@Bean
 	public static MongoTemplate mongoTemplate(MongoClient mongoClient) {
+		if (!configured)
+			MongoConfiguration.configure();
 		return new MongoTemplate(mongoClient, database);
 	}
 
 	@Bean
-	public static MongoClient mongoClient() throws UnknownHostException {
+	public static MongoClient mongoClient() throws UnknownHostException, MissingMongoCredetialsException {
+		if (!configured)
+			MongoConfiguration.configure();
+
+		// Get MongoClient
+		MongoClient mongoClient = null;
 		if (seeds == null) {
-			if (seed == null)
-				return new MongoClient();
-			else {
-				if (credentials == null)
-					return new MongoClient(seed);
-				else
-					return new MongoClient(seed, credentials);
+			// Single Server Setup
+			if (seed == null) {
+				// Default Setup (Unauthenticated)
+				// NOT ALLOWED
+				// mongoClient = new MongoClient();
+			} else {
+				// Defined Setup
+				if (credentials == null) {
+					// Unauthenticated
+					// NOT ALLOWED
+					// mongoClient = new MongoClient(seed);
+				} else {
+					// Authenticated
+					mongoClient = new MongoClient(seed, credentials);
+				}
 			}
 		} else {
-			if (credentials == null)
-				return new MongoClient(seeds);
-			else
-				return new MongoClient(seeds, credentials);
+			// Multi Server Setup
+			if (credentials == null) {
+				// Unauthenticated
+				// NOT ALLOWED
+				// mongoClient = new MongoClient(seeds);
+			} else {
+				// Authenticated
+				mongoClient = new MongoClient(seeds, credentials);
+			}
 		}
+
+		// Check if we have access
+		if(mongoClient == null) {
+			MissingMongoCredetialsException e = new MissingMongoCredetialsException();
+			log.error("Make sure you have credentials set in mongo.properties", e);
+			throw e;
+		}
+		
+		List<String> databases = mongoClient.getDatabaseNames();
+		for (String database : databases) {
+			DB db = mongoClient.getDB(database);
+			if(!db.isAuthenticated());
+		}
+
+		return mongoClient;
 	}
 
 }
