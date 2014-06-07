@@ -25,12 +25,12 @@ public class LoggingTest {
 
 	@Before
 	public void setup() {
-		//mongo.dropCollection("log");
+		mongo.dropCollection("log");
 	}
 
 	@After
 	public void teardown() {
-		//mongo.dropCollection("log");
+		mongo.dropCollection("log");
 	}
 
 	@Test

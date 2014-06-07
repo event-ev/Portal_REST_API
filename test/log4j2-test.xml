@@ -6,7 +6,7 @@
 		</Console>
 		<NoSql name="databaseAppender">
 			<MongoDb collectionName="log"
-				factoryClassName="org.eventev.portal.rest.utils.MongoConfiguration"
+				factoryClassName="org.eventev.portal.rest.utils.mongo.MongoConfiguration"
 				factoryMethodName="mongoDB" />
 		</NoSql>
 	</Appenders>

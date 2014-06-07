@@ -8,8 +8,10 @@ import java.net.URISyntaxException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Properties;
+import java.util.Set;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -38,7 +40,7 @@ public class MongoConfiguration {
 	private static List<MongoCredential> credentials = null;
 	private static String database = null;
 
-	public static void configure() {
+	public static void configure() throws MissingMongoCredetialsException {
 		try {
 			InputStream in = new FileInputStream(new File(
 					MongoConfiguration.class.getResource("/mongo.properties")
@@ -80,12 +82,18 @@ public class MongoConfiguration {
 										+ ".address"));
 					seeds.add(seed);
 				}
+			} else {
+				// Default Setup not allowed
+				MissingMongoCredetialsException e = new MissingMongoCredetialsException();
+				log.error("Make sure you have servers set in mongo.properties",
+						e);
+				throw e;
 			}
-			// else Default Setup
 		} catch (UnknownHostException e) {
 			log.error("Some host in mongo.properties is unknown!", e);
 		}
 
+		HashMap<String, String[]> credentialMap = new HashMap<String, String[]>();
 		if (properties.containsKey("db.name")
 				&& properties.containsKey("db.user")
 				&& properties.containsKey("db.password")) {
@@ -95,6 +103,9 @@ public class MongoConfiguration {
 					properties.getProperty("db.name"),
 					properties.getProperty("db.password").toCharArray());
 			credentials = Arrays.asList(credential);
+			credentialMap.put(properties.getProperty("db.name"),
+					new String[] { properties.getProperty("db.user"),
+							properties.getProperty("db.password") });
 		} else if (properties.containsKey("db.0.name")
 				&& properties.containsKey("db.0.user")
 				&& properties.containsKey("db.0.password")) {
@@ -108,13 +119,49 @@ public class MongoConfiguration {
 						.getProperty("db." + i + ".name"), properties
 						.getProperty("db." + i + ".password").toCharArray());
 				credentials.add(credential);
+				credentialMap.put(properties.getProperty("db." + i + ".name"),
+						new String[] { properties.getProperty("db." + i + ".user"),
+								properties.getProperty("db." + i + ".password") });
+			}
+		} else {
+			// Default Setup not allowed
+			MissingMongoCredetialsException e = new MissingMongoCredetialsException();
+			log.error("Make sure you have credentials set in mongo.properties",
+					e);
+			throw e;
+		}
+		
+		MongoConfiguration.trySetupAuthentication(credentials, credentialMap);
+	}
+
+	private static void trySetupAuthentication(List<MongoCredential> credentials, HashMap<String, String[]> credentialMap) {
+		MongoClient mongoClient;
+		if(seeds == null)
+			mongoClient = new MongoClient(seed, credentials);
+		else
+			mongoClient = new MongoClient(seeds, credentials);
+		
+		MongoClient mongoClient2 = null;
+		Set<String> databases = credentialMap.keySet();
+		for(String database : databases) {
+			DB db = mongoClient.getDB(database);
+			if(!db.isAuthenticated()) {
+				if(mongoClient2 == null) {
+					if(seeds == null)
+						mongoClient2 = new MongoClient(seed);
+					else
+						mongoClient2 = new MongoClient(seeds);
+				}
+				DB db2 = mongoClient2.getDB(database);
+				String[] credential = credentialMap.get(database);
+				db2.addUser(credential[0], credential[1].toCharArray());
 			}
 		}
-		// else Default Setup
 	}
 
 	@Bean
-	public static DB mongoDB() throws UnknownHostException, MissingMongoCredetialsException {
+	public static DB mongoDB() throws UnknownHostException,
+			MissingMongoCredetialsException {
 		if (!configured)
 			MongoConfiguration.configure();
 		return mongoClient().getDB(database);
@@ -122,60 +169,23 @@ public class MongoConfiguration {
 
 	@Bean
 	public static MongoTemplate mongoTemplate(MongoClient mongoClient) {
-		if (!configured)
-			MongoConfiguration.configure();
 		return new MongoTemplate(mongoClient, database);
 	}
 
 	@Bean
-	public static MongoClient mongoClient() throws UnknownHostException, MissingMongoCredetialsException {
+	public static MongoClient mongoClient() throws UnknownHostException,
+			MissingMongoCredetialsException {
 		if (!configured)
 			MongoConfiguration.configure();
 
 		// Get MongoClient
-		MongoClient mongoClient = null;
-		if (seeds == null) {
+		MongoClient mongoClient;
+		if (seeds == null)
 			// Single Server Setup
-			if (seed == null) {
-				// Default Setup (Unauthenticated)
-				// NOT ALLOWED
-				// mongoClient = new MongoClient();
-			} else {
-				// Defined Setup
-				if (credentials == null) {
-					// Unauthenticated
-					// NOT ALLOWED
-					// mongoClient = new MongoClient(seed);
-				} else {
-					// Authenticated
-					mongoClient = new MongoClient(seed, credentials);
-				}
-			}
-		} else {
+			mongoClient = new MongoClient(seed, credentials);
+		else
 			// Multi Server Setup
-			if (credentials == null) {
-				// Unauthenticated
-				// NOT ALLOWED
-				// mongoClient = new MongoClient(seeds);
-			} else {
-				// Authenticated
-				mongoClient = new MongoClient(seeds, credentials);
-			}
-		}
-
-		// Check if we have access
-		if(mongoClient == null) {
-			MissingMongoCredetialsException e = new MissingMongoCredetialsException();
-			log.error("Make sure you have credentials set in mongo.properties", e);
-			throw e;
-		}
-		
-		List<String> databases = mongoClient.getDatabaseNames();
-		for (String database : databases) {
-			DB db = mongoClient.getDB(database);
-			if(!db.isAuthenticated());
-		}
-
+			mongoClient = new MongoClient(seeds, credentials);
 		return mongoClient;
 	}
 
