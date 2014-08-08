@@ -20,6 +20,7 @@ import org.springframework.context.annotation.Configuration;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
 
+import com.mongodb.CommandFailureException;
 import com.mongodb.DB;
 import com.mongodb.MongoClient;
 import com.mongodb.MongoCredential;
@@ -85,8 +86,7 @@ public class MongoConfiguration {
 			} else {
 				// Default Setup not allowed
 				MissingMongoCredetialsException e = new MissingMongoCredetialsException();
-				log.error("Make sure you have servers set in mongo.properties",
-						e);
+				log.error("Make sure you have servers set in mongo.properties", e);
 				throw e;
 			}
 		} catch (UnknownHostException e) {
@@ -145,7 +145,9 @@ public class MongoConfiguration {
 		Set<String> databases = credentialMap.keySet();
 		for(String database : databases) {
 			DB db = mongoClient.getDB(database);
-			if(!db.isAuthenticated()) {
+			try {
+				db.collectionExists("dummyCollection");
+			} catch(CommandFailureException e) {
 				if(mongoClient2 == null) {
 					if(seeds == null)
 						mongoClient2 = new MongoClient(seed);
